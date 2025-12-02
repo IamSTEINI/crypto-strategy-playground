@@ -10,7 +10,7 @@ from datetime import datetime
 symbols = ["ETH", "BTC", "SOL", "XRP", "SUI"]
 intervals = ["1w", "1d", "12h", "4h", "1h", "30m", "15m", "5m", "1m"]
 pair = "USDT"
-base_path = "ACS"
+base_path = "CSP"
 url = "https://api.binance.com/api/v3/klines"
 
 # Checking if the folder exists
