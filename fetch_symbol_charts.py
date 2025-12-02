@@ -3,6 +3,7 @@ import os
 import pandas as pd
 import time
 from datetime import datetime
+import csv
 
 # In this script I want to fetch all chart data, if that data is fetched I want it to stay updated
 # By checking if the data exists and if there is a date (getting the last line timestamp) and choosing a startTime
@@ -12,6 +13,8 @@ intervals = ["1w", "1d", "12h", "4h", "1h", "30m", "15m", "5m", "1m"]
 pair = "USDT"
 base_path = "CSP"
 url = "https://api.binance.com/api/v3/klines"
+session = requests.Session()
+
 
 # Checking if the folder exists
 for symbol in symbols:
@@ -28,7 +31,7 @@ def fetch_symbol_data(symbol, interval, end_time_ms, start_time=None):
     }
     if start_time:
         params["startTime"] = start_time
-    r = requests.get(url, params=params)
+    r = session.get(url, params=params)
     data = r.json()
     if not data or isinstance(data, dict):
         return None
@@ -39,24 +42,29 @@ def fetch_symbol(symbol, interval_index):
     first_write = True
     batch = 1
     if not interval_index > len(intervals):
+        interval = intervals[interval_index]
+        file_path = f"{base_path}/{str(symbol).replace(pair,'')}/{symbol}_{interval}.csv"
+        file_exists = os.path.exists(file_path)
+        f = open(file_path, "a", newline="")
+        writer = csv.writer(f)
+        if first_write and not file_exists:
+            writer.writerow(["timestamp", "open", "high", "low", "close", "volume"])
+            first_write = False
         while True:
             print(f"[FETCHING] {symbol} | BATCH: ({batch})")
-            data = fetch_symbol_data(symbol=symbol,interval=intervals[interval_index], end_time_ms=end_time)
+            data = fetch_symbol_data(symbol=symbol, interval=interval, end_time_ms=end_time)
             if data is None:
-                print(f"[+] Finished {symbol} for {intervals[interval_index]}")
+                print(f"[+] Finished {symbol} for {interval}")
                 break
-            chart_data_frame = pd.DataFrame(
-                data,
-                columns=["timestamp","open","high","low","close","volume","_","_","_","_","_","_"]
-            )
-            chart_data_frame = chart_data_frame[["timestamp","open","high","low","close","volume"]]
-            chart_data_frame = chart_data_frame.iloc[::-1].reset_index(drop=True)
-            chart_data_frame[["open","high","low","close","volume"]] = chart_data_frame[["open","high","low","close","volume"]].astype(float)
-            chart_data_frame.to_csv(f"{base_path}\\{str(symbol).replace(pair,"")}\\{symbol}_{intervals[interval_index]}.csv", mode="a", index=False, header=first_write)
-            
-            first_write = False
+            for row in reversed(data):
+                try:
+                    writer.writerow([int(row[0]), float(row[1]), float(row[2]), float(row[3]), float(row[4]), float(row[5])])
+                except Exception:
+                    continue
             end_time = int(data[0][0]) - 1
             batch += 1
+            time.sleep(0.2)
+        f.close()
 
 def fetch(symbol):
     for i in range(len(intervals)):
