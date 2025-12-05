@@ -1,7 +1,7 @@
 import pandas as pd
 from matplotlib import pyplot as plt
 
-df = pd.read_csv("ETH/ETHUSDT_30m_1000.csv")
+df = pd.read_csv("CSP/ETH/ETHUSDT_1m.csv")
 df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
 df['open'] = pd.to_numeric(df['open'], errors='coerce')
 df['close'] = pd.to_numeric(df['close'], errors='coerce')
