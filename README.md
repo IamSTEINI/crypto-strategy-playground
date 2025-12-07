@@ -41,7 +41,8 @@ Then we will create our chart object and apply the settings and CSV file (in thi
 ```python
 eth_chart = sb.ChartManager()
 eth_chart.set_chart_settings(settings=settings)
-eth_chart.set_chart_data(pd.read_csv("ETHUSDT_1h.csv").iloc[::-1])```
+eth_chart.set_chart_data(pd.read_csv("ETHUSDT_1h.csv").iloc[::-1])
+```
 
 
 Then I will add my strategy, for example: Buying it only if the RSI is in cricial area
