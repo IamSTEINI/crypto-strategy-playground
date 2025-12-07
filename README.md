@@ -75,3 +75,6 @@ print("TOTAL PnL: "+str(round((portfolio["balance"].iloc[-1])-settings.default_m
 
 simulation.graph(rsi=True, rsi_over=[oversold, overbought], ema=True)
 ```
+
+
+### DEMO: <a>https://youtu.be/wUTWG4YvUVY</a>
