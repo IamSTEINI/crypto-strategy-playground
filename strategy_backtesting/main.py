@@ -1,6 +1,11 @@
+import json
+import threading
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 import random
+
+import websocket
 
 def check_chart(chart: pd.DataFrame):
     if not ("timestamp" in chart.columns and "close" in chart.columns):
@@ -208,3 +213,141 @@ class Simulation:
             ax3.axvline(x=chart_copy['timestamp'].iloc[-1], color="red", linestyle="-", linewidth=1)
         
         plt.show()
+
+class Session:
+    def __init__(self, websocketURL: str, strategy=None):
+        self.websocketURL = websocketURL
+        self.strategy_function = strategy
+        self.ws = None
+        self.running = False
+        self.thread = None
+        
+    def _on_message(self, ws, message):
+        try:
+            data = json.loads(message)
+            if self.strategy_function:
+                self.strategy_function(data)
+        except Exception as e:
+            print(f"Error on message: {e}")
+    
+    def _on_error(self, ws, error):
+        print(f"WS Error: {error}")
+    
+    def _on_close(self, ws, close_code, close_msg):
+        print("WS Closed")
+        self.running = False
+    
+    def _on_open(self, ws):
+        print(f"WS Connected: {self.websocketURL}")
+        self.running = True
+    
+    def start(self):
+        if self.running:
+            print("Error: Session is already running")
+            return
+        
+        def run_websocket():
+            self.ws = websocket.WebSocketApp(
+                self.websocketURL,
+                on_open=self._on_open,
+                on_message=self._on_message,
+                on_error=self._on_error,
+                on_close=self._on_close
+            )
+            self.ws.run_forever()
+        self.thread = threading.Thread(target=run_websocket, daemon=True)
+        self.thread.start()
+        print("WS session started")
+    
+    def stop(self):
+        if self.ws:
+            self.ws.close()
+            self.running = False
+            print("WS Session stopped")
+    
+    def set_strategy(self, strategy_function):
+        self.strategy_function = strategy_function
+        
+    def is_connected(self):
+        return self.running
+
+    def live_chart(self, df_getter, interval=1, max_p=1000, show_ema=True, show_rsi=False, rsi_levels=[30,70]):
+        plt.style.use("dark_background")
+        if show_rsi:
+            fig, (ax1,ax2) = plt.subplots(2,1,figsize=(12,8), gridspec_kw={'height_ratios': [3, 1]})
+        else:
+            fig, ax1 = plt.subplots(1,1,figsize=(12,6))
+            ax2 = None
+        
+        plt.subplots_adjust(hspace=0.3)
+        
+        def animate(frame):
+            try:
+                df = df_getter()
+                
+                if df is None or len(df) == 0:
+                    return
+                
+                if len(df) > max_p:
+                    df = df.iloc[-max_p:].copy()
+                else:
+                    df = df.copy()
+                
+                df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+                df['close'] = pd.to_numeric(df['close'], errors='coerce')
+                
+                ax1.clear()
+                if ax2:
+                    ax2.clear()
+                
+                ax1.plot(df['timestamp'], df['close'], linewidth=2, label='Price')
+                
+                if show_ema and len(df) >= 25:
+                    if len(df) >= 25:
+                        ema25 = df['close'].ewm(span=25, adjust=False).mean()
+                        ax1.plot(df['timestamp'], ema25, color='#a200ff63', linewidth=1.5, label='EMA25', alpha=0.7)
+                    if len(df) >= 50:
+                        ema50 = df['close'].ewm(span=50, adjust=False).mean()
+                        ax1.plot(df['timestamp'], ema50, color='#ff009d64', linewidth=1.5, label='EMA50', alpha=0.7)
+                    if len(df) >= 100:
+                        ema100 = df['close'].ewm(span=100, adjust=False).mean()
+                        ax1.plot(df['timestamp'], ema100, color='#a200ff65', linewidth=1.5, label='EMA100', alpha=0.7)
+                    if len(df) >= 200:
+                        ema200 = df['close'].ewm(span=200, adjust=False).mean()
+                        ax1.plot(df['timestamp'], ema200, color='#d284ff78', linewidth=1.5, label='EMA200', alpha=0.7)
+                
+                ax1.set_title(f'Live Session ({len(df)} transactions)')
+                ax1.set_xlabel('Time')
+                ax1.set_ylabel('Price')
+                ax1.legend(loc='upper left')
+                ax1.grid(True, alpha=0.3)
+                plt.setp(ax1.xaxis.get_majorticklabels(), rotation=45, ha='right')
+                if show_rsi and ax2 and len(df) >= 14:
+                    df_rsi = df.copy()
+                    df_rsi['change'] = df_rsi['close'].diff()
+                    df_rsi['gain'] = df_rsi['change'].clip(lower=0)
+                    df_rsi['loss'] = -df_rsi['change'].clip(upper=0)
+                    df_rsi['avggain'] = df_rsi['gain'].rolling(14).mean()
+                    df_rsi['avgloss'] = df_rsi['loss'].rolling(14).mean()
+                    df_rsi['RSI'] = df_rsi.apply(lambda r: calcRSI(r['avggain'], r['avgloss']), axis=1)
+                    ax2.plot(df_rsi['timestamp'], df_rsi['RSI'], linewidth=2)
+                    ax2.axhline(y=rsi_levels[0], color='green', linestyle='--', linewidth=1, alpha=0.7)
+                    ax2.axhline(y=rsi_levels[1], color='red', linestyle='--', linewidth=1, alpha=0.7)
+                    ax2.set_title('RSI', fontsize=12)
+                    ax2.set_xlabel('Time')
+                    ax2.set_ylabel('RSI')
+                    ax2.set_ylim(0, 100)
+                    ax2.grid(True, alpha=0.3)
+                    plt.setp(ax2.xaxis.get_majorticklabels(), rotation=45, ha='right')
+
+            except Exception as e:
+                print(f"Error updating: {e}")
+        
+        ani = animation.FuncAnimation(fig, animate, interval=int(interval), cache_frame_data=False)
+        plt.tight_layout()
+        
+        try:
+            plt.show()
+        except KeyboardInterrupt:
+            print("\n X Chart closed")
+            self.stop()
