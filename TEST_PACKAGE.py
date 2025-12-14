@@ -117,9 +117,6 @@ def strategyFunction(data):
 
         print(f"{simulated_money}$\t{simulated_assets}ETH\t{simulated_assets*float(data['p'])}$ Unrealized\t\tPROFIT: {(simulated_money + (simulated_assets*float(data['p']))) - 10000}$")
 
-
-# TODO Combined data points (1m,15min, etc...)
-
 url = 'wss://stream.binance.com:9443/ws/'
 symbol = 'ethusdt'
 stream = '@aggTrade'
@@ -136,7 +133,8 @@ session.live_chart(
     max_p=10000, # MAX. DATA POINTS
     show_ema=True, # EMA LINES
     show_rsi=True, # RSI
-    rsi_levels=[30, 70] # RSI, 30 LOW, 70 UP
+    rsi_levels=[30, 70], # RSI, 30 LOW, 70 UP
+    timeframe='1m'
 )
 
 while(session.running):

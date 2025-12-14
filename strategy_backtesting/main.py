@@ -271,15 +271,44 @@ class Session:
     def is_connected(self):
         return self.running
 
-    def live_chart(self, df_getter, interval=1, max_p=1000, show_ema=True, show_rsi=False, rsi_levels=[30,70]):
+    def live_chart(self, df_getter, interval=1, max_p=1000, show_ema=True, show_rsi=False, rsi_levels=[30,70], timeframe='1tick'):
         plt.style.use("dark_background")
         if show_rsi:
             fig, (ax1,ax2) = plt.subplots(2,1,figsize=(12,8), gridspec_kw={'height_ratios': [3, 1]})
         else:
             fig, ax1 = plt.subplots(1,1,figsize=(12,6))
             ax2 = None
-        
         plt.subplots_adjust(hspace=0.3)
+        
+        def make_timeframe(self, df: pd.DataFrame, timeframe):
+            if timeframe == "1tick":
+                return df
+            
+            timeframes = {
+                '1m': '1min', '5m': '5min', '15m': '15min', '30m': '30min',
+                '1h': '1H', '4h': '4H', '12h': '12H',
+                '1D': '1D', '3D': '3D', '1W': '1W'
+            }
+            
+            if timeframe not in timeframes:
+                print(f"Unknown timeframe: {timeframe}, using 1tick")
+                return df
+
+            freq = timeframes[timeframe]
+            df_copy = df.copy()
+            df_copy['timestamp'] = pd.to_datetime(df_copy['timestamp'], unit='ms')
+            df_copy.set_index('timestamp', inplace=True)
+            
+            agg = {'close': 'last'}
+            if 'signal' in df_copy.columns:
+                agg['signal'] = 'last'
+            
+            new_orderd = df_copy.resample(freq).agg(agg).dropna()
+            new_orderd.reset_index(inplace=True)
+            
+            
+            return new_orderd
+            
         
         def animate(frame):
             try:
@@ -288,12 +317,17 @@ class Session:
                 if df is None or len(df) == 0:
                     return
                 
+                df = make_timeframe(self, df, timeframe=timeframe)
+                if len(df) == 0:
+                    return
+                
                 if len(df) > max_p:
                     df = df.iloc[-max_p:].copy()
                 else:
                     df = df.copy()
                 
-                df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+                if df['timestamp'].dtype != 'datetime64[ns]':
+                    df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
                 df['close'] = pd.to_numeric(df['close'], errors='coerce')
                 
                 ax1.clear()
@@ -316,7 +350,7 @@ class Session:
                         ema200 = df['close'].ewm(span=200, adjust=False).mean()
                         ax1.plot(df['timestamp'], ema200, color='#d284ff78', linewidth=1.5, label='EMA200', alpha=0.7)
                 
-                ax1.set_title(f'Live Session ({len(df)} transactions)')
+                ax1.set_title(f'Live Session ({len(df)} points) - {timeframe}')
                 ax1.set_xlabel('Time')
                 ax1.set_ylabel('Price')
                 buy_signals = df[df['signal'] == 'buy']
@@ -355,3 +389,4 @@ class Session:
         except KeyboardInterrupt:
             print("\n X Chart closed")
             self.stop()
+            
