@@ -291,7 +291,7 @@ class Session:
             }
             
             if timeframe not in timeframes:
-                print(f"Unknown timeframe: {timeframe}, using 1tick")
+                #print(f"Unknown timeframe: {timeframe}, using 1tick")
                 return df
 
             freq = timeframes[timeframe]

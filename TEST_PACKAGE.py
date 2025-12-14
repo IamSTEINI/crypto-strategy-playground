@@ -134,7 +134,7 @@ session.live_chart(
     show_ema=True, # EMA LINES
     show_rsi=True, # RSI
     rsi_levels=[30, 70], # RSI, 30 LOW, 70 UP
-    timeframe='1m'
+    timeframe=''
 )
 
 while(session.running):

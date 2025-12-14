@@ -76,5 +76,61 @@ print("TOTAL PnL: "+str(round((portfolio["balance"].iloc[-1])-settings.default_m
 simulation.graph(rsi=True, rsi_over=[oversold, overbought], ema=True)
 ```
 
+Now let's say we want to apply our strategy with a live chart. But we also need the websocket data
+So let's initialize a session with:
+```python
+df = pd.DataFrame() # Used for the data displaying
+url = 'wss://stream.binance.com:9443/ws/'
+symbol = 'ethusdt'
+stream = '@aggTrade'
+long_url = url+symbol+stream
+session = sb.Session(websocketURL=long_url, strategy=strategyFunction)
+```
+
+After we started the session with
+```python
+session.start()
+```
+
+But we also need a function that places our buy and sell marks:
+```python
+def strategyFunction(data):
+    global df, simulated_assets, simulated_money
+    # Here we receive price data and while its running we get the indicators so we add every entry to our strategy list
+    append = {
+        "timestamp": data['T'],
+        "close": float(data['p']),
+        "signal": None
+    }
+    
+    new = pd.DataFrame([append])
+    df = pd.concat([df, new], ignore_index=True)
+
+    # Here you can add your own strategy and add signal: buy/sell depending on your strategy
+```
+
+we can define a live chart:
+
+```python
+# Wait till connection is available with websocket
+time.sleep(3)
+
+session.live_chart(
+    df_getter=lambda: df, # DATAFRAME
+    interval=0, # UPDATE INTERVAL
+    max_p=10000, # MAX. DATA POINTS
+    show_ema=True, # EMA LINES
+    show_rsi=True, # RSI
+    rsi_levels=[30, 70], # RSI, 30 LOW, 70 UP
+    timeframe='1m' # TIMEFRAME
+)
+
+# KEEPING IT RUNNING
+while(session.running):
+    time.sleep(1)
+```
+
+FINISH! 🥳
+
 
 ### DEMO: <a>https://youtu.be/wUTWG4YvUVY</a>
