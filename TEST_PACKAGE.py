@@ -64,17 +64,61 @@ print("TOTAL PnL: "+str(round((portfolio["balance"].iloc[-1])-settings.default_m
 
 # Now lets apply our strategy to the live data
 # And our strategy function
+
 df = pd.DataFrame()
+simulated_assets = 0
+simulated_money = 10000
+
+def calcRSI(avg_gain, avg_loss):
+    if avg_loss == 0: return 100
+    rs = avg_gain / avg_loss
+    return 100 - (100 / (1 + rs))
+
 def strategyFunction(data):
-    global df
+    global df, simulated_assets, simulated_money
     # Here we receive price data and while its running we get the indicators so we add every entry to our strategy list
     append = {
         "timestamp": data['T'],
-        "close": data['p']
+        "close": float(data['p']),
+        "signal": None
     }
-    df = pd.concat([df, pd.DataFrame([append])], ignore_index=True)
-    print(pd.DataFrame([append]))
     
+    new = pd.DataFrame([append])
+    df = pd.concat([df, new], ignore_index=True)
+    
+    # ADDING THE RSI STRATEGY HERE
+    if len(df) >= 100:
+        df_temp = df.copy()
+        df_temp['change'] = df_temp['close'].diff()
+        df_temp['gain'] = df_temp['change'].clip(lower=0)
+        df_temp['loss'] = -df_temp['change'].clip(upper=0)
+        df_temp['avggain'] = df_temp['gain'].rolling(14).mean()
+        df_temp['avgloss'] = df_temp['loss'].rolling(14).mean()
+        
+        current_rsi = calcRSI(
+            df_temp['avggain'].iloc[-1], 
+            df_temp['avgloss'].iloc[-1]
+        )
+        
+        if current_rsi < 10:
+            df.loc[df.index[-1], 'signal'] = 'buy'
+            simulated_assets += 0.01
+            simulated_money -= 0.01 * float(data['p'])
+            print(f"[BUY] SIGNAL ${data['p']} (RSI: {current_rsi:.2f})")
+        
+        elif current_rsi > 90:
+            df.loc[df.index[-1], 'signal'] = 'sell'
+            if simulated_assets >= 0.01:
+                simulated_assets -= 0.01
+                simulated_money += 0.01 *float(data['p'])
+            print(f"[SELL] SIGNAL ${data['p']} (RSI: {current_rsi:.2f})")
+            
+        # BUYING / SELLING IF RSI IS ABOVE OR BELOW
+
+        print(f"{simulated_money}$\t{simulated_assets}ETH\t{simulated_assets*float(data['p'])}$ Unrealized\t\tPROFIT: {(simulated_money + (simulated_assets*float(data['p']))) - 10000}$")
+
+
+# TODO Combined data points (1m,15min, etc...)
 
 url = 'wss://stream.binance.com:9443/ws/'
 symbol = 'ethusdt'

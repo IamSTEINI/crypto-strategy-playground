@@ -319,6 +319,10 @@ class Session:
                 ax1.set_title(f'Live Session ({len(df)} transactions)')
                 ax1.set_xlabel('Time')
                 ax1.set_ylabel('Price')
+                buy_signals = df[df['signal'] == 'buy']
+                sell_signals = df[df['signal'] == 'sell']
+                ax1.scatter(buy_signals['timestamp'], buy_signals['close'], color='#00FF0073', marker='^', s=50)
+                ax1.scatter(sell_signals['timestamp'], sell_signals['close'], color='#ff101065', marker='v', s=50)
                 ax1.legend(loc='upper left')
                 ax1.grid(True, alpha=0.3)
                 plt.setp(ax1.xaxis.get_majorticklabels(), rotation=45, ha='right')
