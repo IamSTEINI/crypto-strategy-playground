@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lernkarten-App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #e2e8f0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 1rem;
+        }
+        .card-container {
+            perspective: 1000px;
+            width: 100%;
+            max-width: 600px;
+            height: 400px;
+            margin: 2rem auto;
+            position: relative;
+        }
+        .card {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            transform-style: preserve-3d;
+            transition: transform 2s;
+            border-radius: 1rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .card.flipped {
+            transform: rotateY(180deg);
+        }
+        .card-face {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            border-radius: 1rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem;
+            text-align: center;
+        }
+        .card-front {
+            background-color: #ffffff;
+            color: #1a202c;
+        }
+        .card-back {
+            background-color: #4a5568;
+            color: #ffffff;
+            transform: rotateY(180deg);
+        }
+        .marked-card-container {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+    </style>
+</head>
+<body class="bg-gray-200 text-gray-800">
+
+    <div class="w-full max-w-2xl p-6 bg-white rounded-xl shadow-2xl">
+        <div class="text-center mb-6">
+            <h1 id="cardTitle" class="text-3xl font-bold mb-2">Lernkarte Nummer 1</h1>
+            <p id="cardCount" class="text-gray-500">Karte 1 von 20</p>
+        </div>
+
+        <div class="card-container">
+            <div id="flashcard" class="card">
+                <div id="frontSide" class="card-face card-front">
+                    <p id="frontText" class="text-xl font-semibold">Lade...</p>
+                </div>
+                <div id="backSide" class="card-face card-back">
+                    <p id="backText" class="text-xl font-semibold">Lade...</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex justify-center mt-6">
+            <div class="marked-card-container">
+                <input type="checkbox" id="learnAgainCheckbox" class="form-checkbox h-5 w-5 text-blue-600 rounded-md">
+                <label for="learnAgainCheckbox" class="text-md font-medium text-gray-700">Nochmal lernen</label>
+            </div>
+        </div>
+
+        <div class="flex flex-wrap justify-center gap-4 mt-6">
+            <button id="flipButton" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-full shadow-lg transition-transform duration-300 hover:scale-105">Drehen</button>
+            <button id="nextButton" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-6 rounded-full shadow-lg transition-transform duration-300 hover:scale-105">Weiter</button>
+            <button id="randomButton" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-6 rounded-full shadow-lg transition-transform duration-300 hover:scale-105">Zufällig</button>
+            <button id="againButton" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-full shadow-lg transition-transform duration-300 hover:scale-105">!</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+
+            // Hardgecodete CSV-Daten als String
+            const csvData = `Nummer;Vorseite;Rückseite
+ 1;Was ist eine Klasse in Java?;Eine Klasse ist ein Bauplan für Objekte.
+2;Was ist ein Objekt?;Ein Objekt ist ein konkretes Ding, das nach einer Klasse erstellt wurde.
+3;Was ist der Unterschied zwischen Klasse und Objekt?;Die Klasse ist der Bauplan, das Objekt das gebaute Ergebnis.
+4;Was sind Attribute?;Attribute sind Eigenschaften eines Objekts.
+5;Wo werden Attribute festgelegt?;Attribute werden in der Klasse definiert.
+6;Was ist ein Konstruktor?;Ein Konstruktor legt fest, wie ein Objekt erstellt wird und setzt Startwerte.
+7;Was ist ein parametrisierter Konstruktor?;Ein Konstruktor, dem beim Erzeugen Werte übergeben werden.
+8;Was bedeutet public in Java?;public bestimmt, dass von überall darauf zugegriffen werden darf.
+9;Was ist ein Getter?;Ein Getter ist eine Methode zum Lesen eines Attributwertes.
+10;Was ist ein Setter?;Ein Setter ist eine Methode zum kontrollierten Ändern eines Attributwertes.
+`;
+
+            // Element-Referenzen
+            const cardTitle = document.getElementById('cardTitle');
+            const cardCount = document.getElementById('cardCount');
+            const flashcard = document.getElementById('flashcard');
+            const frontText = document.getElementById('frontText');
+            const backText = document.getElementById('backText');
+            const flipButton = document.getElementById('flipButton');
+            const nextButton = document.getElementById('nextButton');
+            const randomButton = document.getElementById('randomButton');
+            const learnAgainCheckbox = document.getElementById('learnAgainCheckbox');
+            const againButton = document.getElementById('againButton');
+
+            let cards = [];
+            let currentCardIndex = 0;
+            let isFlipped = false;
+            let markedCards = new Set();
+            let showingMarked = false;
+
+            // Funktion zum Parsen der CSV-Daten
+            function parseCSV(csvString) {
+                const lines = csvString.trim().split('\n');
+                const headers = lines[0].split(';');
+                return lines.slice(1).map(line => {
+                    const values = line.split(';');
+                    const card = {};
+                    headers.forEach((header, i) => {
+                        card[header.trim()] = values[i].trim();
+                    });
+                    return card;
+                });
+            }
+
+            // Funktion zum Laden und Anzeigen der Karte
+            function loadCard(index) {
+                const card = showingMarked ? markedCards[index] : cards[index];
+                if (!card) return;
+
+                // Setze die Karte auf die Vorderseite, falls sie umgedreht war
+                if (isFlipped) {
+                    flashcard.classList.remove('flipped');
+                    isFlipped = false;
+                    setTimeout(() => {
+                        updateCardContent(card);
+                    }, 500); // Verzögerung, damit die Vorderseite sichtbar wird
+                } else {
+                    updateCardContent(card);
+                }
+
+                // Aktualisiere den Zustand der "Nochmal lernen"-Checkbox
+                const cardIdentifier = card['Nummer'];
+                learnAgainCheckbox.checked = markedCards.has(cardIdentifier);
+
+                // Aktualisiere die Anzeigen für Titel und Zählung
+                cardTitle.textContent = `Lernkarte`;
+                cardCount.textContent = `Karte ${index + 1} von ${showingMarked ? markedCards.length : cards.length}`;
+            }
+
+            // Funktion zum Aktualisieren des Karteninhalts
+            function updateCardContent(card) {
+                frontText.innerHTML = card['Vorseite'];
+                backText.innerHTML = card['Rückseite'];
+            }
+
+            // Funktion zum Drehen der Karte mit Animation
+            function flipCard() {
+                if (isFlipped) {
+                    flashcard.classList.remove('flipped');
+                } else {
+                    flashcard.classList.add('flipped');
+                }
+                isFlipped = !isFlipped;
+            }
+
+            // Event-Listener für Buttons
+            flipButton.addEventListener('click', flipCard);
+
+            nextButton.addEventListener('click', () => {
+                const deck = showingMarked ? markedCards : cards;
+                currentCardIndex = (currentCardIndex + 1) % deck.length;
+                loadCard(currentCardIndex);
+            });
+
+            randomButton.addEventListener('click', () => {
+                const deck = showingMarked ? markedCards : cards;
+                currentCardIndex = Math.floor(Math.random() * deck.length);
+                loadCard(currentCardIndex);
+            });
+
+            learnAgainCheckbox.addEventListener('change', (event) => {
+                const currentCard = showingMarked ? markedCards[currentCardIndex] : cards[currentCardIndex];
+                const cardIdentifier = currentCard['Nummer'];
+                if (event.target.checked) {
+                    markedCards.add(cardIdentifier);
+                } else {
+                    markedCards.delete(cardIdentifier);
+                }
+            });
+
+            againButton.addEventListener('click', () => {
+                if (markedCards.size === 0) {
+                    frontText.innerHTML = "Keine markierten Karten zum Lernen.";
+                    backText.innerHTML = "Keine markierten Karten zum Lernen.";
+                    cardTitle.textContent = "Lernkarten";
+                    cardCount.textContent = "";
+                    showingMarked = true; // Flag setzen, um zu verhindern, dass die nächste Taste eine Fehlermeldung auslöst
+                    return;
+                }
+                showingMarked = true;
+                const markedCardNumbers = Array.from(markedCards);
+                // Erstellt ein neues Array mit den tatsächlichen Kartenobjekten
+                markedCards = cards.filter(card => markedCardNumbers.includes(card['Nummer']));
+                currentCardIndex = 0;
+                loadCard(currentCardIndex);
+            });
+
+            // Initialisierung
+            cards = parseCSV(csvData);
+            loadCard(currentCardIndex);
+        });
+    </script>
+<script type="text/javascript">window.setTimeout(function() { document.cookie = "_lcp3=a; Path=/; expires=Mon Mar 20 2034 13:02:58; SameSite=Lax" }, 1000);</script></body>
+</html>
